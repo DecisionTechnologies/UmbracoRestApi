@@ -74,13 +74,21 @@ namespace Umbraco.RestApi.Models
                 .ForMember(representation => representation.Properties, expression => expression.ResolveUsing(content =>
                 {
                     return content.Properties.ToDictionary(property => property.PropertyTypeAlias,
-                        property => property.Value);
+                        property => property.GetSerializableValue());
                 }));
 
             //config.CreateMap<SearchResult, ContentRepresentation>()
             //    //TODO: Lookup children
             //    .ForMember(content => content.HasChildren, expression => expression.Ignore())
             //    .ForMember(content => content.ContentType, expression => expression.Ignore())
+        }
+    }
+
+    public static class PublishedPropertyExtensions
+    {
+        public static object GetSerializableValue(this IPublishedProperty property)
+        {
+            return property.HasValue && property.Value.GetType().IsSerializable ? property.Value : property.Value?.ToString();
         }
     }
 }
