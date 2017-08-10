@@ -2,17 +2,22 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Web;
 using System.Web.Http;
+using System.Web.Security;
 using AutoMapper;
 using Examine;
 using Examine.Providers;
 using Umbraco.Core;
+using Umbraco.Core.Configuration;
 using Umbraco.Core.Models;
 using Umbraco.Core.Services;
 using Umbraco.RestApi.Links;
 using Umbraco.RestApi.Models;
 using Umbraco.RestApi.Routing;
 using Umbraco.Web;
+using Umbraco.Web.Models;
+using Umbraco.Web.Routing;
 
 namespace Umbraco.RestApi.Controllers
 {
@@ -135,9 +140,51 @@ namespace Umbraco.RestApi.Controllers
         protected override ContentRepresentation CreateRepresentation(IPublishedContent entity)
         {
             //create it with the current version link representation
+            var x = new PublishedContentRenderModel(entity, CultureInfo.CurrentCulture);
             var representation = new ContentRepresentation(LinkTemplate);
-            return Mapper.Map(entity, representation);
+            return Mapper.Map(x.Content, representation);
         }
 
+    }
+
+    public class PublishedContentRenderModel : IRenderModel
+    {
+        public PublishedContentRenderModel(IPublishedContent content, CultureInfo culture)
+        {
+            if (content == null)
+            {
+                content = new UmbracoHelper(UmbracoContext.Current).TypedContentAtRoot().FirstOrDefault();
+                Content = content;
+                Culture = culture;
+                return;
+            }
+
+            var baseUrl = HttpContext.Current.Request.Url.AbsoluteUri.Replace(HttpContext.Current.Request.Path, "/");
+            var umbUrl = baseUrl + content.Url.TrimStart('/');
+
+            var pcr = new PublishedContentRequest(
+                new Uri(umbUrl),
+                UmbracoContext.Current.RoutingContext,
+                UmbracoConfig.For.UmbracoSettings().WebRouting,
+                s => Roles.Provider.GetRolesForUser(s)
+            );
+
+            UmbracoContext.Current.PublishedContentRequest = pcr;
+            UmbracoContext.Current.PublishedContentRequest.PublishedContent = content;
+
+            pcr.Prepare();
+
+            Content = content;
+            Culture = culture;
+        }
+
+        public PublishedContentRenderModel()
+            : this(default(IPublishedContent), CultureInfo.CurrentUICulture)
+        {
+        }
+
+        public IPublishedContent Content { get; set; }
+
+        public CultureInfo Culture { get; set; }
     }
 }
